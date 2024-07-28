@@ -26,6 +26,8 @@ interface TemplateContent {
 const CONFIG = {
   templateDir: path.join(process.cwd(), 'templates'),
   outputDir: path.join(process.cwd(), 'output'),
+  completeDir: path.join(process.cwd(), 'complete'),
+  characterDir: path.join(process.cwd(), 'characters'),
   defaultModel: 'mistralai/mixtral-8x22b-instruct',
   defaultEditor: 'hx'
 };
@@ -34,6 +36,40 @@ const CONFIG = {
 async function getTemplates(): Promise<string[]> {
   const files = await fs.readdir(CONFIG.templateDir);
   return files.filter(file => file.endsWith('.md'));
+}
+
+async function getArticles(): Promise<string[]> {
+  const files = await fs.readdir(CONFIG.outputDir);
+  return files.filter(file => file.endsWith('.md'));
+}
+
+async function getCharacters(): Promise<string[]> {
+  const files = await fs.readdir(CONFIG.characterDir);
+  return files.filter(file => file.endsWith('.json'));
+}
+
+async function readArticleWithFrontMatter(templateName: string): Promise<TemplateContent | null> {
+  const filePath = path.join(CONFIG.completeDir, templateName);
+  try {
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const { data, content } = matter(fileContent);
+    return { params: data.params || [], content };
+  } catch (error) {
+    console.error(`Error reading template ${templateName}:`, error);
+    return null;
+  }
+}
+
+async function readCharacter(character: string): Promise<any> {
+  const filePath = path.join(CONFIG.characterDir, character);
+  try {
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const characterData = JSON.parse(fileContent);
+    return characterData
+  } catch (error) {
+    console.error(`Error reading template ${character}:`, error);
+    return null;
+  }
 }
 
 async function readTemplateWithFrontMatter(templateName: string): Promise<TemplateContent | null> {
@@ -48,9 +84,9 @@ async function readTemplateWithFrontMatter(templateName: string): Promise<Templa
   }
 }
 
-async function writeArticle(content: string): Promise<string> {
+async function writeArticle(content: string, outputDir: string): Promise<string> {
   const timestamp = new Date().toISOString().replace(/:/g, '-');
-  const outputPath = path.join(CONFIG.outputDir, `${timestamp}.md`);
+  const outputPath = path.join(outputDir, `${timestamp}.md`);
   await fs.writeFile(outputPath, content, 'utf-8');
   return outputPath;
 }
@@ -142,7 +178,7 @@ async function newArticle() {
   });
 
   const articleContent = articleResponse.choices[0].message.content;
-  const outputPath = await writeArticle(articleContent);
+  const outputPath = await writeArticle(articleContent, CONFIG.outputDir);
   console.log(`Generated blog post written to ${outputPath}.`);
 
   const editorOpen = await select({ 
@@ -159,8 +195,58 @@ async function newArticle() {
 }
 
 async function refineArticle() {
-  console.log("Refine article functionality not implemented yet.");
-  // TODO: Implement article refinement logic
+  // console.log("Refine article functionality not implemented yet.");
+  // We want to refine an article by taking what the user's submitted and then reprocessing it once more. 
+
+  const articles = await getArticles();
+  const selected = await select({
+    message: 'Select an article to process:',
+    choices: articles.map(article => ({ name: article, value: article })),
+  });
+
+  const articleContent = await readArticleWithFrontMatter(selected);
+
+  // Refine only has one option: voice. Let's not worry about it.
+  // const refineResponse = await select({
+  //   message: "Choose a character voice to refine:",
+  //   choices: [
+  //     { name: "Refine with Character Voice", value: "character" },
+  //     { name: "Refine with LLM", value: "llm" }],
+  // });
+
+  const characters = await getCharacters();
+  const selectedCharacter = await select({
+    message: 'Select a character to use:',
+    choices: characters.map(character => ({ name: character, value: character })),
+  });
+
+  const characterData = await readCharacter(selectedCharacter);
+
+  const reducedCharacterData = {
+    name: characterData.name,
+    description: characterData.description,
+    few_shot_examples: characterData.few_shot_examples,
+    tone_and_voice: characterData.tone_and_voice,
+    post_prompt: characterData.post_prompt
+  }
+
+  const refineResponse = await requestChatCompletion({
+    messages: [
+      { role: "system", content: characterData?.system_prompt },
+      { role: "user", content: `Revise the following article as if the following character is writing it: \n${articleContent?.content}\nCharacter writing the article: ${JSON.stringify(characterData)}\n` }
+    ]
+  });
+
+  const refinedContent = refineResponse.choices[0].message.content;
+  const outputPath = await writeArticle(refinedContent, CONFIG.outputDir);
+  console.log(`Generated blog post written to ${outputPath}.`);
+  console.log("Refinement complete. Happy writing!");
+
+
+}
+
+async function publishArticle() {
+  console.log("Publish article functionality not implemented yet.");
 }
 
 async function listStatus() {
@@ -178,6 +264,7 @@ async function mainMenu() {
       choices: [
         { name: chalk.white('New Article'), value: 'new' },
         { name: chalk.white('Refine Article'), value: 'refine' },
+        { name: chalk.white('Publish Article'), value: 'publish' },
         { name: chalk.white('List Status'), value: 'status' },
         { name: chalk.white('Exit'), value: 'exit' }
       ],
@@ -186,6 +273,7 @@ async function mainMenu() {
     switch (action) {
       case 'new': await newArticle(); break;
       case 'refine': await refineArticle(); break;
+      case 'publish': await publishArticle(); break;
       case 'status': await listStatus(); break;
       case 'exit': 
         console.log(chalk.green.bold("Goodbye!"));
