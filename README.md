@@ -1,0 +1,2 @@
+# Simple Templating System - Blog
+
