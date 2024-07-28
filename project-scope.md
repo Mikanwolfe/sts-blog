@@ -142,3 +142,102 @@ Testing and Documentation
 - Are there any time constraints or deadlines?
 - What potential challenges or risks should be noted?
 - Are there any specific coding standards or practices to follow?
+
+## Templates and use case
+
+Templates could be:
+- Technical tutorials and How To
+- Project Showcase/Update
+- Industry News
+- Problem Solving
+- Productivity and Workflow
+- Opinion and Editorial
+- Code Snippets, Libraries
+- Career Development
+- Case Studies and Real World Applications
+- Tools and Software Reviews
+- Hardware and Embedded Systems (more like a category)
+
+
+### Use Case
+
+Now that we have a few, let's look at the user experience/use case
+
+Menu
+- New
+- Refine
+- Continue
+
+#### New
+
+```
+? Select the article type
+
+Select: Opinion
+
+? Briefly describe the goals of the article, and any key points
+
+Input: Brief
+
+? Select related articles for context:
+
+Select: Relevant Article(s)
+
+! Template generated, opening editor
+
+hx <template>
+
+```
+
+The generated template would look something like:
+
+```
+YAML Frontmatter
+---
+
+Relevant articles:
+...
+
+
+## Heading
+
+Etc etc etc
+
+
+
+<! Special template for explaining in depth>
+
+
+```
+
+#### Refine
+
+Take an existing template and then run it through generation with instructions
+
+```
+? Select the article to refine
+
+Select: 2024-07-28-Opinion
+
+? Decribe any sepcial generation instructions
+
+Input: etc etc
+
+! Generating...
+! Generated! 
+
+<Some sort of preview>
+View it here: http:/......
+
+? Select an option:
+- Refine again
+- Adjust generation instructions
+- Publish
+
+Select: Publish
+
+! Publishing...
+! Published to 2024-07-28-Opinion
+
+(Note this just moves it to 11ty)
+```
