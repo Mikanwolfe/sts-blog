@@ -130,6 +130,6 @@ dist
 .pnp.*
 
 # Config files and output folders
-complete/*
-output/*
+generated/*
+completed/*
 characters/*

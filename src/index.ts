@@ -18,7 +18,7 @@ interface ChatCompletionParams {
 }
 
 interface TemplateContent {
-  params: any[];
+  params: any;
   content: string;
 }
 
@@ -49,7 +49,7 @@ async function getCharacters(): Promise<string[]> {
 }
 
 async function readArticleWithFrontMatter(templateName: string): Promise<TemplateContent | null> {
-  const filePath = path.join(CONFIG.completeDir, templateName);
+  const filePath = path.join(CONFIG.outputDir, templateName);
   try {
     const fileContent = await fs.readFile(filePath, 'utf-8');
     const { data, content } = matter(fileContent);
@@ -77,7 +77,7 @@ async function readTemplateWithFrontMatter(templateName: string): Promise<Templa
   try {
     const fileContent = await fs.readFile(filePath, 'utf-8');
     const { data, content } = matter(fileContent);
-    return { params: data.params || [], content };
+    return { params: data || {}, content };
   } catch (error) {
     console.error(`Error reading template ${templateName}:`, error);
     return null;
@@ -147,12 +147,24 @@ async function newArticle() {
     choices: templates.map(template => ({ name: template, value: template })),
   });
 
+  const templateContent = await readTemplateWithFrontMatter(selectedTemplate);
+  if (!templateContent) {
+    throw new Error(`Template ${selectedTemplate} not found`);
+  }
+
+
+  // Query the brief of the project
   const brief = await input({ message: "Briefly describe the goals of the article, and any key points." });
 
+
+  // Query any user commands
+  console.log("\nPlease provide the following template parameters:");
+  console.log(templateContent.params.user_params);
+  const userParamAnswers = await promptForAnswers(templateContent.params.user_params);
   const questionsResponse = await requestChatCompletion({
     messages: [
       { role: "system", content: "You are an LLM function and reply only in the format requested" },
-      { role: "user", content: `What are some questions that a technical audience member might have if they do not understand the following brief? Brief: '${brief}'. Provide a maximum of 5 questions. Only respond in a JSON list, e.g. ['What is the core motivation behind the idea?', ...]` }
+      { role: "user", content: `What are some questions that a technical audience member might have if they do not understand the following brief? Avoid simple questions and focus on complex topics. Context: '${JSON.stringify(userParamAnswers)}' Brief: '${brief}'. Provide a maximum of 5 questions. Only respond in a JSON list, e.g. ['What is the core motivation behind the idea?', ...]` }
     ]
   });
 
@@ -165,10 +177,6 @@ async function newArticle() {
   const userAnswers = await promptForAnswers(llmQuestions.slice(0, 5));
   console.log('\nThank you for answering the questions! Generating article now...');
 
-  const templateContent = await readTemplateWithFrontMatter(selectedTemplate);
-  if (!templateContent) {
-    throw new Error(`Template ${selectedTemplate} not found`);
-  }
 
   const articleResponse = await requestChatCompletion({
     messages: [
@@ -233,7 +241,7 @@ async function refineArticle() {
   const refineResponse = await requestChatCompletion({
     messages: [
       { role: "system", content: characterData?.system_prompt },
-      { role: "user", content: `Revise the following article as if the following character is writing it: \n${articleContent?.content}\nCharacter writing the article: ${JSON.stringify(characterData)}\n` }
+      { role: "user", content: `Revise the following article as if the following character is writing it. Ensure you stick to the template of the article, and only revise the tone and wording of the content. \n${articleContent?.content}\nCharacter writing the article: ${JSON.stringify(characterData)}\n` }
     ]
   });
 

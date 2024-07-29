@@ -4,11 +4,10 @@ auto_params:
     - seo_description
 user_params:
     - author_name
-    - publication_date
     - main_question
     - main_viewpoint
     - main_alt_viewpoint
-    - bottom line
+    - bottom_line
 layout: post
 tags: []
 ---
