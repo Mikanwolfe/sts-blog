@@ -105,9 +105,8 @@ export async function newArticle() {
   generationLog.title = title;
   await fileOperations.writeGenerationLog(generationLog, CONFIG.outputDir);
 
-  // Add a delay for 2 seconds to ensure the message is seen by the user
-  await new Promise(resolve => setTimeout(resolve, 2000));
   console.log("Generation complete. Happy writing!");
+  await new Promise(resolve => setTimeout(resolve, 2000));
 }
 
 export async function refineArticle() {
@@ -145,11 +144,7 @@ export async function refineArticle() {
     })),
   });
 
-  const articleContent = await fileOperations.readArticleWithFrontMatter(selectedArticle);
 
-  if (!articleContent) {
-    throw new Error("Article content is null");
-  }
 
   // Get and process characters
   const characterFiles = await fileOperations.getCharacters();
@@ -187,24 +182,86 @@ export async function refineArticle() {
   const reducedCharacterData = {
     name: characterData.name,
     description: characterData.description,
-    few_shot_examples: characterData.few_shot_examples,
-    tone_and_voice: characterData.tone_and_voice,
     post_prompt: characterData.post_prompt
   };
 
-  console.log(chalk.cyan("Refining article..."));
+  const fewShotExamples = (characterData.few_shot_examples || []).flatMap((example: { input: string; output: string; }) => [
+    {
+      role: "user",
+      content: example.input,
+    },
+    {
+      role: "assistant",
+      content: example.output,
+    }
+  ]);
 
-  const refineResponse = await requestChatCompletion({
-    messages: [
+  let isUserSatisfied = false;
+
+  while (!isUserSatisfied) {
+
+    const articleContent = await fileOperations.readArticleWithFrontMatter(selectedArticle);
+
+    if (!articleContent) {
+      throw new Error("Article content is null");
+    }
+
+    const specialInstructions = await input({
+      message: "Describe any special generation instructions (or press enter to skip):",
+    });
+
+
+    console.log(chalk.cyan("Refining article..."));
+    let messages: { role: string; content: string }[] = [
       { role: "system", content: characterData.system_prompt },
-      { role: "user", content: `Revise the following article as if the following character is writing it. Ensure you stick to structure, and only revise the tone and wording of the content. \n${articleContent.content}\nCharacter writing the article: ${JSON.stringify(reducedCharacterData)}\nEnsure you stay in character. Follow the way of writing that the character uses. Adjust the headings, content, and thoughts behind the article as needed. Expand on your explanations. Reply in Markdown.` }
-    ]
-  });
+      ...fewShotExamples,
+      {
+        role: "user", content: `
+          You are an expert writer and reviewer.
+          Revise the following article as if the following character is writing it. Ensure you stick to structure, and only revise the tone and wording of the content.
+          The character, ${characterData.name}, writes in the following way: ${characterData.tone_and_voice}.
 
-  const refinedContent = refineResponse.choices[0].message.content;
-  const outputPath = await fileOperations.writeArticle(refinedContent, CONFIG.completeDir, articleContent.params.title ?? "Refined Article");
-  console.log(chalk.green(`Refined blog post written to ${outputPath}.`));
-  console.log(chalk.green("Refinement complete. Happy writing!"));
+          ${articleContent.content}\n
+          
+          ---
+          Character writing the article: ${JSON.stringify(reducedCharacterData)}\n
+          ---
+          Ensure you stay in character. Follow the way of writing that the character uses. Adjust the headings, content, and thoughts behind the article as needed. Expand on your explanations. ${specialInstructions}. Reply in Markdown.`
+      }
+    ]
+
+
+    const refineResponse = await requestChatCompletion({
+      messages: messages
+    });
+
+    const refinedContent = refineResponse.choices[0].message.content;
+    const outputPath = await fileOperations.writeArticle(refinedContent, CONFIG.completeDir, articleContent.params.title ?? "Refined Article");
+    console.log(chalk.green(`Refined blog post written to ${outputPath}.`));
+
+
+    const userChoice = await select({
+      message: "What would you like to do?",
+      choices: [
+        { name: "Save and exit", value: "save" },
+        { name: "Regenerate", value: "regenerate" },
+      ],
+    });
+
+    switch (userChoice) {
+      case "save":
+        isUserSatisfied = true;
+        break;
+      case "regenerate":
+        console.log("\nLet's try again with new instructions.");
+        break;
+    }
+
+  }
+
+
+  console.log("Generation complete. Happy writing!");
+  await new Promise(resolve => setTimeout(resolve, 2000));
 }
 
 export async function publishArticle() {
