@@ -22,6 +22,16 @@ interface TemplateContent {
   content: string;
 }
 
+interface GenerationLog {
+  timestamp: string;
+  template: string;
+  brief: string;
+  userParams: Record<string, string>;
+  llmQuestions: string[];
+  userAnswers: Record<string, string>;
+  title: string;
+}
+
 // Configuration
 const CONFIG = {
   templateDir: path.join(process.cwd(), 'templates'),
@@ -82,6 +92,14 @@ async function readTemplateWithFrontMatter(templateName: string): Promise<Templa
     console.error(`Error reading template ${templateName}:`, error);
     return null;
   }
+}
+
+async function writeGenerationLog(log: GenerationLog, outputDir: string): Promise<string> {
+  const timestamp = new Date().toISOString().replace(/:/g, '-');
+  const filename = `generation_log_${timestamp}.json`;
+  const outputPath = path.join(outputDir, filename);
+  await fs.writeFile(outputPath, JSON.stringify(log, null, 2), 'utf-8');
+  return outputPath;
 }
 
 async function writeArticle(content: string, outputDir: string, title?: string): Promise<string> {
@@ -159,6 +177,18 @@ async function openInEditor(filePath: string, editor: string = CONFIG.defaultEdi
 
 // Article Management
 async function newArticle() {
+  
+  const generationLog: GenerationLog = {
+    timestamp: new Date().toISOString(),
+    template: '',
+    brief: '',
+    userParams: {},
+    llmQuestions: [],
+    userAnswers: {},
+    title: ''
+  };
+
+
   const templates = await getTemplates();
   const selectedTemplate = await select({
     message: 'Select an article type:',
@@ -217,6 +247,14 @@ async function newArticle() {
     await openInEditor(outputPath);
     console.log("File edited successfully.");
   }
+
+  generationLog.template = selectedTemplate;
+  generationLog.brief = brief;
+  generationLog.userParams = userParamAnswers;
+  generationLog.llmQuestions = llmQuestions;
+  generationLog.userAnswers = userAnswers;
+  generationLog.title = title;
+  await writeGenerationLog(generationLog, CONFIG.outputDir);
 
   console.log("Generation complete. Happy writing!");
 }
@@ -279,6 +317,99 @@ async function listStatus() {
   console.log("List status functionality not implemented yet.");
   // TODO: Implement status listing logic
 }
+
+async function regenerateArticle() {
+  // Get list of generation log files
+  const logFiles = await fs.readdir(CONFIG.outputDir);
+  const generationLogs = logFiles.filter(file => file.startsWith('generation_log_') && file.endsWith('.json'));
+
+  if (generationLogs.length === 0) {
+    console.log(chalk.yellow("No generation logs found. Please generate an article first."));
+    return;
+  }
+
+  // Let user select a log file
+  const selectedLog = await select({
+    message: 'Select a generation log to regenerate from:',
+    choices: generationLogs.map(log => ({ name: log, value: log })),
+  });
+
+  // Read the selected log file
+  const logPath = path.join(CONFIG.outputDir, selectedLog);
+  const logContent = await fs.readFile(logPath, 'utf-8');
+  const log: GenerationLog = JSON.parse(logContent);
+
+  console.log(chalk.cyan("Regenerating article from log..."));
+
+  // Read the template
+  const templateContent = await readTemplateWithFrontMatter(log.template);
+  if (!templateContent) {
+    throw new Error(`Template ${log.template} not found`);
+  }
+
+  // Allow user to modify parameters
+  console.log(chalk.yellow("\nCurrent parameters:"));
+  console.log(log.userParams);
+  const modifyParams = await select({
+    message: 'Do you want to modify these parameters?',
+    choices: [{ name: "Yes", value: true }, { name: "No", value: false }],
+  });
+
+  let userParamAnswers = log.userParams;
+  if (modifyParams) {
+    userParamAnswers = await promptForAnswers(templateContent.params.user_params);
+  }
+
+  // Allow user to modify answers
+  console.log(chalk.yellow("\nCurrent answers:"));
+  console.log(log.userAnswers);
+  const modifyAnswers = await select({
+    message: 'Do you want to modify these answers?',
+    choices: [{ name: "Yes", value: true }, { name: "No", value: false }],
+  });
+
+  let userAnswers = log.userAnswers;
+  if (modifyAnswers) {
+    userAnswers = await promptForAnswers(log.llmQuestions);
+  }
+
+  // Generate new article content
+  const articleResponse = await requestChatCompletion({
+    messages: [
+      { role: "system", content: "You are an LLM function and reply only in the format requested" },
+      { role: "user", content: `Context: ${JSON.stringify(userAnswers)}\n Use the following template to generate an article skeleton for the user to build on. Ensure you leave questions for user input: \n${templateContent.content}\nReply in markdown, ensure you fill in some of the QA context.` }
+    ]
+  });
+  const articleContent = articleResponse.choices[0].message.content;
+
+  // Write the regenerated article
+  const newTitle = await input({ message: "File save name (press Enter to keep the original):", default: log.title });
+  const outputPath = await writeArticle(articleContent, CONFIG.outputDir, newTitle);
+  console.log(chalk.green(`Regenerated blog post written to ${outputPath}.`));
+
+  // Update and write the new generation log
+  const newLog: GenerationLog = {
+    ...log,
+    timestamp: new Date().toISOString(),
+    userParams: userParamAnswers,
+    userAnswers: userAnswers,
+    title: newTitle
+  };
+  const newLogPath = await writeGenerationLog(newLog, CONFIG.outputDir);
+  console.log(chalk.green(`Updated generation log written to ${newLogPath}.`));
+
+  const editorOpen = await select({
+    message: "Open editor?",
+    choices: [{ name: "Yes", value: true }, { name: "No", value: false }],
+  });
+  if (editorOpen) {
+    await openInEditor(outputPath);
+    console.log(chalk.green("File edited successfully."));
+  }
+  console.log(chalk.green("Regeneration complete. Happy writing!"));
+}
+
+
 async function mainMenu() {
   while (true) {
     clearConsole();
@@ -290,6 +421,7 @@ async function mainMenu() {
       choices: [
         { name: chalk.white('New Article'), value: 'new' },
         { name: chalk.white('Refine Article'), value: 'refine' },
+        { name: chalk.white('Regenerate Article'), value: 'regenerate' },
         { name: chalk.white('Publish Article'), value: 'publish' },
         { name: chalk.white('List Status'), value: 'status' },
         { name: chalk.white('Exit'), value: 'exit' }
@@ -299,6 +431,7 @@ async function mainMenu() {
     switch (action) {
       case 'new': await newArticle(); break;
       case 'refine': await refineArticle(); break;
+      case 'regenerate': await regenerateArticle(); break;
       case 'publish': await publishArticle(); break;
       case 'status': await listStatus(); break;
       case 'exit': 
