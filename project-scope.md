@@ -217,9 +217,9 @@ Take an existing template and then run it through generation with instructions
 ```
 ? Select the article to refine
 
-Select: 2024-07-28-Opinion
+Select: 2024-07-28-Opinion-[Summary]
 
-? Decribe any sepcial generation instructions
+? Decribe any special generation instructions
 
 Input: etc etc
 
@@ -241,3 +241,12 @@ Select: Publish
 
 (Note this just moves it to 11ty)
 ```
+
+## Other Ideas / Scratchpad
+
+* Automated titles via an LLM call
+* Progress update via the frontmatter (e.g. status: awaiting human feedback)
+* List all items in one folder with status rather than separate folders
+* Allow automated "Edit: update" feature
+* Auto tagging
+* auto fragmentation of ideas into chroma
