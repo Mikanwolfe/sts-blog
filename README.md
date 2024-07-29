@@ -32,3 +32,7 @@ OPENROUTER_API_KEY=YOUR_API_KEY_HERE
 ## Development
 
 This repo is actively being worked on (probably). See `project-scope.md` for more information.
+
+### Work List
+- [ ] Provide interface for characters/voice
+- [ ] Refine on root document, or have some sort of versioning system for documents. Could be part of the front matter templates.

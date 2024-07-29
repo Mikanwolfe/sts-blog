@@ -3,7 +3,6 @@ auto_params:
     - title
     - seo_description
 user_params:
-    - author_name
     - main_question
     - main_viewpoint
     - main_alt_viewpoint

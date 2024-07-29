@@ -84,12 +84,30 @@ async function readTemplateWithFrontMatter(templateName: string): Promise<Templa
   }
 }
 
-async function writeArticle(content: string, outputDir: string): Promise<string> {
-  const timestamp = new Date().toISOString().replace(/:/g, '-');
-  const outputPath = path.join(outputDir, `${timestamp}.md`);
-  await fs.writeFile(outputPath, content, 'utf-8');
+async function writeArticle(content: string, outputDir: string, title?: string): Promise<string> {
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/:/g, '-');
+  
+  // Create front matter
+  const frontMatter = {
+    title: title || 'Untitled',
+    date: now.toISOString(),
+    created_at: timestamp
+  };
+
+  // Combine front matter with content
+  const fileContent = matter.stringify(content, frontMatter);
+
+  // Create filename
+  const sanitizedTitle = title ? title.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'untitled';
+  const filename = `${timestamp}_${sanitizedTitle}.md`;
+  const outputPath = path.join(outputDir, filename);
+
+  // Write the file
+  await fs.writeFile(outputPath, fileContent, 'utf-8');
   return outputPath;
 }
+
 
 // API Interactions
 async function requestChatCompletion(params: ChatCompletionParams): Promise<any> {
@@ -159,7 +177,6 @@ async function newArticle() {
 
   // Query any user commands
   console.log("\nPlease provide the following template parameters:");
-  console.log(templateContent.params.user_params);
   const userParamAnswers = await promptForAnswers(templateContent.params.user_params);
   const questionsResponse = await requestChatCompletion({
     messages: [
@@ -175,7 +192,9 @@ async function newArticle() {
 
   console.log('\nPlease answer the following questions about your article:');
   const userAnswers = await promptForAnswers(llmQuestions.slice(0, 5));
-  console.log('\nThank you for answering the questions! Generating article now...');
+  console.log('\nThank you for answering the questions!');
+  // Query the brief of the project
+  const title = await input({ message: "File save name:" });
 
 
   const articleResponse = await requestChatCompletion({
@@ -203,7 +222,6 @@ async function newArticle() {
 }
 
 async function refineArticle() {
-  // console.log("Refine article functionality not implemented yet.");
   // We want to refine an article by taking what the user's submitted and then reprocessing it once more. 
 
   const articles = await getArticles();
@@ -246,7 +264,7 @@ async function refineArticle() {
   });
 
   const refinedContent = refineResponse.choices[0].message.content;
-  const outputPath = await writeArticle(refinedContent, CONFIG.outputDir);
+  const outputPath = await writeArticle(refinedContent, CONFIG.completeDir, articleContent?.params?.title ?? "");
   console.log(`Generated blog post written to ${outputPath}.`);
   console.log("Refinement complete. Happy writing!");
 
