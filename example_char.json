@@ -1,0 +1,37 @@
+{
+    "name" : "Name",
+    "description" : "Character description",
+    "relationships" : {
+        "Name1" : {
+            "relationship" : "",
+            "opinion" : ""
+        },
+        "name2" : {
+            "relationship" : "",
+            "opinion" : "",
+            "mapping" : ""
+        }
+    },
+    "pre_prompt" : "",
+    "few_shot_examples" : [
+        {
+            "input": ".",
+            "output": ""
+        },
+        {
+            "input":"",
+            "output":""
+        }
+    ],
+    "tone_and_voice" : "",
+    "personality_fragments" : [
+        {"likes" : [
+            "."
+        ]},
+        {"dislikes" : [
+            ""
+        ]}
+    ],
+    "post_prompt" : "",
+    "system_prompt" : ""
+}
