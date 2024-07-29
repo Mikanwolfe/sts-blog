@@ -48,7 +48,7 @@ export async function mainMenu() {
         { name: chalk.white('Regenerate Article'), value: 'regenerate' },
         { name: chalk.white('Publish Article'), value: 'publish' },
         { name: chalk.white('List Status'), value: 'status' },
-        { name: chalk.white('Exit'), value: 'exit' }
+        { name: chalk.yellow('Exit'), value: 'exit' }
       ],
     });
 
