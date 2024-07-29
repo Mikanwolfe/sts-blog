@@ -25,18 +25,6 @@ export async function getGenerationLogs(): Promise<string[]> {
 }
 
 
-export async function readArticleWithFrontMatter(templateName: string): Promise<TemplateContent | null> {
-    const filePath = path.join(CONFIG.outputDir, templateName);
-    try {
-        const fileContent = await fs.readFile(filePath, 'utf-8');
-        const { data, content } = matter(fileContent);
-        return { params: data.params || [], content };
-    } catch (error) {
-        console.error(`Error reading template ${templateName}:`, error);
-        return null;
-    }
-}
-
 export async function readCharacter(character: string): Promise<any> {
     const filePath = path.join(CONFIG.characterDir, character);
     try {
@@ -73,6 +61,20 @@ export async function readTemplateWithFrontMatter(templateName: string): Promise
         return null;
     }
 }
+
+
+export async function readArticleWithFrontMatter(templateName: string): Promise<TemplateContent | null> {
+    const filePath = path.join(CONFIG.outputDir, templateName);
+    try {
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        const { data, content } = matter(fileContent);
+        return { params: data || [], content };
+    } catch (error) {
+        console.error(`Error reading template ${templateName}:`, error);
+        return null;
+    }
+}
+
 
 export async function writeGenerationLog(log: GenerationLog, outputDir: string): Promise<string> {
     const timestamp = new Date().toISOString().replace(/:/g, '-');
