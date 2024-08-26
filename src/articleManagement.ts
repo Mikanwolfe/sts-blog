@@ -339,8 +339,9 @@ export async function regenerateArticle() {
   const articleResponse = await requestChatCompletion({
     messages: [
       { role: "system", content: "You are an LLM function and reply only in the format requested" },
-      { role: "user", content: `Context: ${JSON.stringify(userAnswers)}\n Use the following template to generate an article skeleton for the user to build on. Ensure you leave questions for user input: \n${templateContent.content}\nReply in markdown, ensure you fill in some of the QA context.` }
-    ]
+      { role: "user", content: `Context: ${JSON.stringify(userAnswers)}\n Use the following template as a suggestion to generate an article that is in an opinionated manner. Ensure you capture the primary ideas presented in the questions and answers: \n${templateContent.content}\nReply in markdown, ensure you fill in some of the QA context.` }
+    ],
+    model: "anthropic/claude-3.5-sonnet:beta"
   });
   const articleContent = articleResponse.choices[0].message.content;
 
